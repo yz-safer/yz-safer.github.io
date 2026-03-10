@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列 | Hexo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="0. 前言在确定了原始查询的列数后，下一步是找出哪些列可以用来提取数据。由于 UNION 注入要求数据类型必须兼容，我们通常需要寻找支持 字符串（String&#x2F;Text） 类型的列，以便在后续步骤中显示数据库中的敏感信息。  1. 漏洞原理简述在执行 UNION SELECT 时，每一列的数据类型必须与原始查询对应列的类型兼容。 如果原始查询的第一列是整数（Integer），而你试图在">
+<meta property="og:type" content="article">
+<meta property="og:title" content="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列">
+<meta property="og:url" content="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/index.html">
+<meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="0. 前言在确定了原始查询的列数后，下一步是找出哪些列可以用来提取数据。由于 UNION 注入要求数据类型必须兼容，我们通常需要寻找支持 字符串（String&#x2F;Text） 类型的列，以便在后续步骤中显示数据库中的敏感信息。  1. 漏洞原理简述在执行 UNION SELECT 时，每一列的数据类型必须与原始查询对应列的类型兼容。 如果原始查询的第一列是整数（Integer），而你试图在">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/lab-result.png">
+<meta property="article:published_time" content="2026-03-10T07:30:00.000Z">
+<meta property="article:modified_time" content="2026-03-10T07:30:00.000Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="PortSwigger">
+<meta property="article:tag" content="SQL Injection">
+<meta property="article:tag" content="UNION注入">
+<meta property="article:tag" content="渗透测试">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/lab-result.png">
+  
+    <link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 8.1.1"></head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">Hexo</a>
+      </h1>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS Feed"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="Search"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://example.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-owasp-top-10-sqli-union-find-column-type" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2026/03/10/owasp-top-10-sqli-union-find-column-type/" class="article-date">
+  <time class="dt-published" datetime="2026-03-10T07:30:00.000Z" itemprop="datePublished">2026-03-10</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h2 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h2><p>在确定了原始查询的列数后，下一步是找出哪些列可以用来提取数据。由于 UNION 注入要求数据类型必须兼容，我们通常需要寻找支持 <strong>字符串（String&#x2F;Text）</strong> 类型的列，以便在后续步骤中显示数据库中的敏感信息。</p>
+<hr>
+<h2 id="1-漏洞原理简述"><a href="#1-漏洞原理简述" class="headerlink" title="1. 漏洞原理简述"></a>1. 漏洞原理简述</h2><p>在执行 <code>UNION SELECT</code> 时，每一列的数据类型必须与原始查询对应列的类型兼容。</p>
+<p>如果原始查询的第一列是整数（Integer），而你试图在 UNION 中注入字符串，数据库会抛出数据类型不匹配的错误。因此，我们需要通过<strong>逐列替换测试</strong>的方法，找到那个能够正常渲染字符串的“出口”。</p>
+<hr>
+<h2 id="2-核心探测手法与-Payload-分析"><a href="#2-核心探测手法与-Payload-分析" class="headerlink" title="2. 核心探测手法与 Payload 分析"></a>2. 核心探测手法与 Payload 分析</h2><p>假设我们已经通过 <code>ORDER BY</code> 确定原始查询有 3 列，接下来我们要依次测试每一列是否支持字符型数据。</p>
+<h3 id="测试步骤："><a href="#测试步骤：" class="headerlink" title="测试步骤："></a>测试步骤：</h3><ol>
+<li><strong>测试第一列</strong>：<code>&#39; UNION SELECT &#39;abc&#39;, NULL, NULL--</code></li>
+<li><strong>测试第二列</strong>：<code>&#39; UNION SELECT NULL, &#39;abc&#39;, NULL--</code></li>
+<li><strong>测试第三列</strong>：<code>&#39; UNION SELECT NULL, NULL, &#39;abc&#39;--</code></li>
+</ol>
+<h3 id="逻辑解析："><a href="#逻辑解析：" class="headerlink" title="逻辑解析："></a>逻辑解析：</h3><ul>
+<li><strong><code>NULL</code> 的妙用</strong>：由于 <code>NULL</code> 可以转换成任何类型，它在探测时不会触发类型错误。</li>
+<li><strong>常量字符串 <code>&#39;abc&#39;</code></strong>：我们尝试将其中一个 <code>NULL</code> 替换为已知的字符串。</li>
+<li><strong>观察响应</strong>：<ul>
+<li>如果页面返回 <strong>HTTP 500</strong> 或报错，说明该列<strong>不支持</strong>字符串类型。</li>
+<li>如果页面正常渲染，并在原本显示数据的位置出现了 <code>&#39;abc&#39;</code>，说明该列<strong>可以</strong>用来提取文本数据。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2 id="3-靶场复现过程"><a href="#3-靶场复现过程" class="headerlink" title="3. 靶场复现过程"></a>3. 靶场复现过程</h2><p><strong>实验环境</strong>：PortSwigger Academy - SQL injection UNION attack, finding a column containing text</p>
+<p><strong>复现步骤</strong>：</p>
+<ol>
+<li><strong>确定列数</strong>：<br>使用 <code>&#39; ORDER BY 3--</code> 正常，<code>&#39; ORDER BY 4--</code> 报错，确认共有 <strong>3 列</strong>。</li>
+<li><strong>寻找文本列</strong>：<ul>
+<li>尝试第一列：<code>&#39; UNION SELECT &#39;CoUV8K&#39;, NULL, NULL--</code> -&gt; 报错 500。</li>
+<li>尝试第二列：<code>&#39; UNION SELECT NULL, &#39;CoUV8K&#39;, NULL--</code> -&gt; <strong>成功！</strong> 页面正常显示了该随机字符串。</li>
+<li>尝试第三列：<code>&#39; UNION SELECT NULL, NULL, &#39;CoUV8K&#39;--</code> -&gt; 报错 500。</li>
+</ul>
+</li>
+<li><strong>执行结果</strong>：确认第二列为文本列。在本实验中，只要在指定列位置注入实验要求的随机字符串，即可通关。</li>
+</ol>
+<h2 id=""><a href="#" class="headerlink" title="  "></a>  <img src="/2026/03/10/owasp-top-10-sqli-union-find-column-type/lab-result.png" alt="成功截图"></h2><h2 id="4-防御建议"><a href="#4-防御建议" class="headerlink" title="4. 防御建议"></a>4. 防御建议</h2><p>防御 UNION 注入的逻辑与之前一致，核心在于<strong>消除注入点</strong>：</p>
+<h4 id="✅-最佳实践：参数化查询（Parameterized-Queries）"><a href="#✅-最佳实践：参数化查询（Parameterized-Queries）" class="headerlink" title="✅ 最佳实践：参数化查询（Parameterized Queries）"></a>✅ 最佳实践：参数化查询（Parameterized Queries）</h4><p>无论数据类型是什么，预编译语句都会将输入内容视为纯字面量：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 安全的代码实现</span></span><br><span class="line"><span class="type">String</span> <span class="variable">category</span> <span class="operator">=</span> request.getParameter(<span class="string">&quot;category&quot;</span>);</span><br><span class="line"><span class="type">String</span> <span class="variable">sql</span> <span class="operator">=</span> <span class="string">&quot;SELECT name, description, price FROM products WHERE category = ?&quot;</span>;</span><br><span class="line"><span class="type">PreparedStatement</span> <span class="variable">pstmt</span> <span class="operator">=</span> connection.prepareStatement(sql);</span><br><span class="line">pstmt.setString(<span class="number">1</span>, category);</span><br><span class="line"><span class="type">ResultSet</span> <span class="variable">rs</span> <span class="operator">=</span> pstmt.executeQuery();</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/" data-id="cuidcAY9-x4oaWSztAAxGYUlA" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2026/03/09/owasp-top-10-sqli-union-column-count/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">【实战笔记】OWASP Top 10 - SQL 注入：UNION 攻击确定列数</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tags</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/OWASP-Top-10/" rel="tag">OWASP Top 10</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Web%E5%AE%89%E5%85%A8/" rel="tag">Web安全</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" rel="tag">身份验证绕过</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tag Cloud</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/OWASP-Top-10/" style="font-size: 10px;">OWASP Top 10</a> <a href="/tags/PortSwigger/" style="font-size: 16.67px;">PortSwigger</a> <a href="/tags/SQL-Injection/" style="font-size: 16.67px;">SQL Injection</a> <a href="/tags/UNION%E6%B3%A8%E5%85%A5/" style="font-size: 13.33px;">UNION注入</a> <a href="/tags/Web%E5%AE%89%E5%85%A8/" style="font-size: 10px;">Web安全</a> <a href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" style="font-size: 20px;">渗透测试</a> <a href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" style="font-size: 10px;">身份验证绕过</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2026/03/">March 2026</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2026/03/10/owasp-top-10-sqli-union-find-column-type/">【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列</a>
+          </li>
+        
+          <li>
+            <a href="/2026/03/09/owasp-top-10-sqli-union-column-count/">【实战笔记】OWASP Top 10 - SQL 注入：UNION 攻击确定列数</a>
+          </li>
+        
+          <li>
+            <a href="/2026/03/08/owasp-top-10-sqli-login-bypass/">【实战笔记】OWASP Top 10 - SQL 注入：身份验证绕过</a>
+          </li>
+        
+          <li>
+            <a href="/2026/03/07/OWASP-Top-10-SQL-Injection/">【实战笔记】OWASP Top 10 - SQL注入基础原理与万能密码绕过</a>
+          </li>
+        
+          <li>
+            <a href="/2026/03/05/hello-world/">Hello World</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2026 John Doe<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>
