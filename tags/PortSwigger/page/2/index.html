@@ -4,24 +4,15 @@
   <meta charset="utf-8">
   
   
-  <title>【实战笔记】OWASP Top 10 - SQL注入基础原理与万能密码绕过 | Hexo</title>
+  <title>Tag: PortSwigger | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="1. 什么是 SQL 注入？简单来说，SQL 注入就像是你在填表格时，在原本应该填“姓名”的地方填入了一段“后台指令”。 当服务器没有对你输入的内容进行严格检查，直接把这段指令拼接到数据库查询语句中时，数据库就会“误以为”这是开发人员让它执行的操作。通过这种方式，攻击者可以越过权限，直接读取、修改甚至删除数据库里的敏感数据。  2. 核心 Payload 分析在登录界面，最经典的“万能密码”通常是">
-<meta property="og:type" content="article">
-<meta property="og:title" content="【实战笔记】OWASP Top 10 - SQL注入基础原理与万能密码绕过">
-<meta property="og:url" content="http://example.com/2026/03/07/OWASP-Top-10-SQL-Injection/index.html">
+  <meta property="og:type" content="website">
+<meta property="og:title" content="Hexo">
+<meta property="og:url" content="http://example.com/tags/PortSwigger/page/2/index.html">
 <meta property="og:site_name" content="Hexo">
-<meta property="og:description" content="1. 什么是 SQL 注入？简单来说，SQL 注入就像是你在填表格时，在原本应该填“姓名”的地方填入了一段“后台指令”。 当服务器没有对你输入的内容进行严格检查，直接把这段指令拼接到数据库查询语句中时，数据库就会“误以为”这是开发人员让它执行的操作。通过这种方式，攻击者可以越过权限，直接读取、修改甚至删除数据库里的敏感数据。  2. 核心 Payload 分析在登录界面，最经典的“万能密码”通常是">
 <meta property="og:locale" content="en_US">
-<meta property="og:image" content="http://example.com/2026/03/07/OWASP-Top-10-SQL-Injection/lab-result.png">
-<meta property="article:published_time" content="2026-03-07T11:30:21.000Z">
-<meta property="article:modified_time" content="2026-03-10T08:50:14.507Z">
 <meta property="article:author" content="John Doe">
-<meta property="article:tag" content="PortSwigger">
-<meta property="article:tag" content="SQL Injection">
-<meta property="article:tag" content="渗透测试">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://example.com/2026/03/07/OWASP-Top-10-SQL-Injection/lab-result.png">
   
     <link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -78,92 +69,45 @@
 </header>
 
       <div class="outer">
-        <section id="main"><article id="post-OWASP-Top-10-SQL-Injection" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
-  <div class="article-meta">
-    <a href="/2026/03/07/OWASP-Top-10-SQL-Injection/" class="article-date">
-  <time class="dt-published" datetime="2026-03-07T11:30:21.000Z" itemprop="datePublished">2026-03-07</time>
-</a>
-    
-  <div class="article-category">
-    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a>
-  </div>
-
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
+        <section id="main">
   
-    <h1 class="p-name article-title" itemprop="headline name">
-      【实战笔记】OWASP Top 10 - SQL注入基础原理与万能密码绕过
+  
+    
+    
+      
+      
+      <section class="archives-wrap">
+        <div class="archive-year-wrap">
+          <a href="/archives/2026" class="archive-year">2026</a>
+        </div>
+        <div class="archives">
+    
+    <article class="archive-article archive-type-post">
+  <div class="archive-article-inner">
+    <header class="archive-article-header">
+      <a href="/2026/03/07/OWASP-Top-10-SQL-Injection/" class="archive-article-date">
+  <time class="dt-published" datetime="2026-03-07T11:30:21.000Z" itemprop="datePublished">Mar 7</time>
+</a>
+      
+  
+    <h1 itemprop="name">
+      <a class="archive-article-title" href="/2026/03/07/OWASP-Top-10-SQL-Injection/">【实战笔记】OWASP Top 10 - SQL注入基础原理与万能密码绕过</a>
     </h1>
   
 
-      </header>
-    
-    <div class="e-content article-entry" itemprop="articleBody">
-      
-        <h2 id="1-什么是-SQL-注入？"><a href="#1-什么是-SQL-注入？" class="headerlink" title="1. 什么是 SQL 注入？"></a>1. 什么是 SQL 注入？</h2><p>简单来说，SQL 注入就像是你在填表格时，在原本应该填“姓名”的地方填入了一段“后台指令”。</p>
-<p>当服务器没有对你输入的内容进行严格检查，直接把这段指令拼接到数据库查询语句中时，数据库就会“误以为”这是开发人员让它执行的操作。通过这种方式，攻击者可以越过权限，直接读取、修改甚至删除数据库里的敏感数据。</p>
-<hr>
-<h2 id="2-核心-Payload-分析"><a href="#2-核心-Payload-分析" class="headerlink" title="2. 核心 Payload 分析"></a>2. 核心 Payload 分析</h2><p>在登录界面，最经典的“万能密码”通常是：<br><code>&#39; OR 1=1-- </code></p>
-<h3 id="为什么它能生效？"><a href="#为什么它能生效？" class="headerlink" title="为什么它能生效？"></a>为什么它能生效？</h3><p>假设后台的 SQL 查询逻辑是：<br>$SELECT * FROM users WHERE username &#x3D; ‘admin’ AND password &#x3D; ‘$password’$</p>
-<p>当我们输入上述 Payload 后，SQL 语句变成了：<br>$SELECT * FROM users WHERE username &#x3D; ‘admin’ AND password &#x3D; ‘’ OR 1&#x3D;1 –’$</p>
-<ul>
-<li><strong><code>&#39; </code> (单引号)</strong>：用来闭合掉代码中原本的第一个单引号。</li>
-<li><strong><code>OR 1=1</code></strong>：由于 $1&#x3D;1$ 恒等于真（True），整个 <code>WHERE</code> 子句的结果永远为真。</li>
-<li><strong><code>-- </code> (注释符号)</strong>：这非常关键。它会把后面剩下的 SQL 代码（比如原本用来验证密码的结尾引号）全部变成注释掉，让数据库直接忽略它们。</li>
-</ul>
-<p><strong>结果</strong>：数据库不看密码，直接让你登录成功！</p>
-<hr>
-<h2 id="3-靶场复现过程（PortSwigger）"><a href="#3-靶场复现过程（PortSwigger）" class="headerlink" title="3. 靶场复现过程（PortSwigger）"></a>3. 靶场复现过程（PortSwigger）</h2><ol>
-<li><strong>环境准备</strong>：打开 PortSwigger 的 “SQL injection vulnerability in WHERE clause allowing retrieval of hidden data” 实验。</li>
-<li><strong>攻击尝试</strong>：在 Category 参数后添加 <code>&#39; OR 1=1--</code>。</li>
-<li><strong>验证结果</strong>：<img src="/2026/03/07/OWASP-Top-10-SQL-Injection/lab-result.png" alt="SQL注入绕过实验"></li>
-</ol>
-<hr>
-<h2 id="4-防御建议"><a href="#4-防御建议" class="headerlink" title="4. 防御建议"></a>4. 防御建议</h2><p>想要彻底杜绝 SQL 注入，靠过滤特殊字符是不够的，最标准且有效的方案是：</p>
-<ul>
-<li><strong>参数化查询（Parameterized Queries &#x2F; Prepared Statements）</strong>：<br> 它的原理是在 SQL 语句发送到数据库之前，先定义好“模板”。无论用户输入什么（哪怕是删库指令），都会被数据库严格当成“普通的字符串”处理，而不会作为代码执行。</li>
-<li><strong>最小权限原则</strong>：<br>  Web 应用连接数据库的账号不应拥有 <code>SA</code> 或 <code>root</code> 权限，只给它业务所需的最小读写权限。</li>
-</ul>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/07/OWASP-Top-10-SQL-Injection/" data-id="cuidNqab0alD4fCCEFk2kycn0" data-title="【实战笔记】OWASP Top 10 - SQL注入基础原理与万能密码绕过" class="article-share-link"><span class="fa fa-share">Share</span></a>
-      
-      
-      
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li></ul>
-
-    </footer>
+    </header>
   </div>
-  
-    
-<nav id="article-nav">
-  
-    <a href="/2026/03/08/owasp-top-10-sqli-login-bypass/" id="article-nav-newer" class="article-nav-link-wrap">
-      <strong class="article-nav-caption">Newer</strong>
-      <div class="article-nav-title">
-        
-          【实战笔记】OWASP Top 10 - SQL 注入：身份验证绕过
-        
-      </div>
-    </a>
-  
-  
-    <a href="/2026/03/05/hello-world/" id="article-nav-older" class="article-nav-link-wrap">
-      <strong class="article-nav-caption">Older</strong>
-      <div class="article-nav-title">Hello World</div>
-    </a>
-  
-</nav>
-
-  
 </article>
+  
+  
+    </div></section>
+  
 
+
+  <nav id="page-nav">
+    
+    <a class="extend prev" rel="prev" href="/tags/PortSwigger/">&laquo; Prev</a><a class="page-number" href="/tags/PortSwigger/">1</a><span class="page-number current">2</span>
+  </nav>
 
 </section>
         

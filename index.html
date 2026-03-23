@@ -71,6 +71,108 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-owasp-top-10-blind-sqli-conditional-responses" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2026/03/23/owasp-top-10-blind-sqli-conditional-responses/" class="article-date">
+  <time class="dt-published" datetime="2026-03-23T02:00:00.000Z" itemprop="datePublished">2026-03-23</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="p-name article-title" href="/2026/03/23/owasp-top-10-blind-sqli-conditional-responses/">【实战笔记】OWASP Top 10 - 基于条件响应的布尔盲注 (Boolean-Based Blind SQLi)</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h2 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h2><p>在之前的实验中，我们利用 <code>UNION</code> 直接将数据“回显”到了页面上。但在现实场景中，许多应用程序虽然存在注入漏洞，却不会在页面上显示任何查询结果。此时，我们需要通过观察应用程序在接收不同指令时返回的<strong>条件响应</strong>（如：是否显示特定欢迎词）来逐位“猜解”数据库内容。</p>
+<hr>
+<h2 id="1-漏洞原理简述"><a href="#1-漏洞原理简述" class="headerlink" title="1. 漏洞原理简述"></a>1. 漏洞原理简述</h2><p><strong>布尔盲注（Boolean-Based Blind SQLi）</strong> 是一种通过使数据库执行逻辑判断，并根据页面响应的差异（真&#x2F;假）来提取数据的方法。</p>
+<h3 id="核心逻辑："><a href="#核心逻辑：" class="headerlink" title="核心逻辑："></a>核心逻辑：</h3><ol>
+<li><strong>构造判断题</strong>：向数据库提问，例如：“管理员密码的第一位是 ‘a’ 吗？”</li>
+<li><strong>观察响应</strong>：<ul>
+<li>如果页面显示了预期的内容（如 “Welcome back!”），说明判断为<strong>真 (True)</strong>。</li>
+<li>如果页面内容发生变化或缺失，说明判断为<strong>假 (False)</strong>。</li>
+</ul>
+</li>
+<li><strong>逐位爆破</strong>：利用这种二元状态，配合 <code>SUBSTRING()</code> 函数，我们可以猜解出完整的字符串。</li>
+</ol>
+<hr>
+<h2 id="2-核心-Payload-与函数分析"><a href="#2-核心-Payload-与函数分析" class="headerlink" title="2. 核心 Payload 与函数分析"></a>2. 核心 Payload 与函数分析</h2><h3 id="关键-SQL-函数："><a href="#关键-SQL-函数：" class="headerlink" title="关键 SQL 函数："></a>关键 SQL 函数：</h3><ul>
+<li><strong><code>SUBSTRING(string, start, length)</code></strong>：截取字符串。<code>SUBSTRING(&#39;password&#39;, 1, 1)</code> 返回 ‘p’。</li>
+<li><strong><code>LENGTH(string)</code></strong>：返回字符串长度。</li>
+</ul>
+<h3 id="实验-Payload-结构："><a href="#实验-Payload-结构：" class="headerlink" title="实验 Payload 结构："></a>实验 Payload 结构：</h3><p><code>&#39; AND (SELECT SUBSTRING(password, 1, 1) FROM users WHERE username = &#39;administrator&#39;) = &#39;a&#39;--</code></p>
+<p><strong>逻辑解析：</strong></p>
+<ul>
+<li>如果管理员密码的第一位确实是 ‘a’，则 <code>AND</code> 后面的条件为真，整个查询返回结果，页面显示 “Welcome back!”。</li>
+<li>如果不是 ‘a’，条件为假，页面不显示 “Welcome back!”。</li>
+</ul>
+<hr>
+<h2 id="3-靶场复现过程"><a href="#3-靶场复现过程" class="headerlink" title="3. 靶场复现过程"></a>3. 靶场复现过程</h2><p><strong>实验环境</strong>：PortSwigger Academy - Blind SQL injection with conditional responses</p>
+<p><strong>复现步骤</strong>：</p>
+<ol>
+<li><p><strong>确认注入点</strong>：<br>发现请求中包含 <code>TrackingId</code> Cookie。尝试修改：</p>
+<ul>
+<li><code>TrackingId=xyz&#39; AND &#39;1&#39;=&#39;1</code> -&gt; 页面显示 “Welcome back!”</li>
+<li><code>TrackingId=xyz&#39; AND &#39;1&#39;=&#39;2</code> -&gt; “Welcome back!” 消失。<br><strong>结论</strong>：存在布尔盲注漏洞。</li>
+</ul>
+</li>
+<li><p><strong>探测密码长度</strong>：<br>注入：<code>&#39; AND (SELECT LENGTH(password) FROM users WHERE username = &#39;administrator&#39;) &gt; 19--</code><br>通过递增数字，发现当长度为 20 时页面正常，21 时消失。确认密码长度为 <strong>20位</strong>。</p>
+</li>
+<li><p><strong>逐位猜解密码 (自动化攻击)</strong>：<br>由于手工猜解 20 位密码（每位需尝试 a-z, 0-9）效率太低，使用 <strong>Burp Intruder</strong>：</p>
+<ul>
+<li><strong>位置</strong>：<code>...SUBSTRING(password, §1§, 1) = &#39;§a§&#39;--</code></li>
+<li><strong>Payload 类型</strong>：Cluster Bomb (集束炸弹)。</li>
+<li><strong>设置</strong>：第一个位置为 1-20 (Numbers)，第二个位置为 a-z, 0-9 (Simple list)。</li>
+<li><strong>筛选</strong>：在 Intruder 的 Options 中设置 “Grep - Match”，添加 “Welcome back!”。</li>
+</ul>
+</li>
+<li><p><strong>执行结果</strong>：<br>根据 Intruder 筛选出的“真”值，按顺序拼接出 20 位字符串。<br>使用 <code>administrator</code> 和该密码成功登录。</p>
+</li>
+</ol>
+<p><img src="/2026/03/23/owasp-top-10-blind-sqli-conditional-responses/lab-result.png" alt="Burp Intruder 猜解结果截图"></p>
+<hr>
+<h2 id="4-防御建议与总结"><a href="#4-防御建议与总结" class="headerlink" title="4. 防御建议与总结"></a>4. 防御建议与总结</h2><h3 id="关键点总结"><a href="#关键点总结" class="headerlink" title="关键点总结"></a>关键点总结</h3><ul>
+<li><strong>盲注的代价</strong>：盲注不需要回显，但需要大量的 HTTP 请求。实战中常配合二分法（Binary Search）或自动化脚本来提高效率。</li>
+<li><strong>隐蔽性</strong>：这种漏洞在扫描器不开启深度探测时较难发现，但危害巨大。</li>
+</ul>
+<h3 id="防御方案"><a href="#防御方案" class="headerlink" title="防御方案"></a>防御方案</h3><ul>
+<li><strong>参数化查询 (Prepared Statements)</strong>：无论是否盲注，预编译始终是终结 SQL 注入的最强防御。</li>
+<li><strong>通用错误处理</strong>：确保无论数据库查询成功还是失败，页面返回的信息量尽可能一致，不给攻击者留下区分“真假”的机会。</li>
+<li><strong>频率限制 (Rate Limiting)</strong>：盲注依赖大量请求，通过限制同一 IP 的请求频率可以有效减缓攻击。</li>
+</ul>
+<hr>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2026/03/23/owasp-top-10-blind-sqli-conditional-responses/" data-id="cuidjXEbXTIPKD-5emA4TFqRf" data-title="【实战笔记】OWASP Top 10 - 基于条件响应的布尔盲注 (Boolean-Based Blind SQLi)" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/Blind-SQLi/" rel="tag">Blind SQLi</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8/" rel="tag">布尔盲注</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+
+  
     <article id="post-owasp-top-10-sqli-listing-database-contents-oracle" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
   <div class="article-meta">
     <a href="/2026/03/20/owasp-top-10-sqli-listing-database-contents-oracle/" class="article-date">
@@ -144,7 +246,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/20/owasp-top-10-sqli-listing-database-contents-oracle/" data-id="cuid0fA_wTQ3AdYD48hi-gIXX" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/20/owasp-top-10-sqli-listing-database-contents-oracle/" data-id="cuidmwrgFYBPhjXKg5RLl0FL-" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -228,7 +330,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/19/owasp-top-10-sqli-listing-database-contents/" data-id="cuid71PjcZyKoRDcUsPk70Ajn" data-title="【实战笔记】OWASP Top 10 - SQL 注入：非 Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/19/owasp-top-10-sqli-listing-database-contents/" data-id="cuidoraYPZfQf4MdBm72vDYTi" data-title="【实战笔记】OWASP Top 10 - SQL 注入：非 Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -337,7 +439,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/16/owasp-top-10-sqli-database-version-mysql-mssql/" data-id="cuid2dR1zb4HsWzCFgoAiZHad" data-title="【实战笔记】OWASP Top 10 - SQL 注入：MySQL 与 Microsoft SQL Server 指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/16/owasp-top-10-sqli-database-version-mysql-mssql/" data-id="cuidniQQsqEgEL5cdmKShAwWI" data-title="【实战笔记】OWASP Top 10 - SQL 注入：MySQL 与 Microsoft SQL Server 指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -419,7 +521,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/14/owasp-top-10-sqli-database-version-oracle/" data-id="cuiddteW13V4y4uY8TWJcae1T" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库版本指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/14/owasp-top-10-sqli-database-version-oracle/" data-id="cuidw41oVm8xglaRpobg3aLJb" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库版本指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -505,7 +607,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/13/owasp-top-10-sqli-union-string-concatenation/" data-id="cuidvew5TR1axz9zg0iUZHPN9" data-title="【实战笔记】OWASP Top 10 - SQL 注入：单列多值提取（字符串拼接技巧）" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/13/owasp-top-10-sqli-union-string-concatenation/" data-id="cuidWi71_SEWmCoe8e6Ts3xK0" data-title="【实战笔记】OWASP Top 10 - SQL 注入：单列多值提取（字符串拼接技巧）" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -599,7 +701,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/11/owasp-top-10-sqli-union-retrieving-data/" data-id="cuidpg3iVbne3V89AEkVBWT2X" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 提取跨表敏感数据" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/11/owasp-top-10-sqli-union-retrieving-data/" data-id="cuidvBL9R9VNZUiJFdvgpUtEe" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 提取跨表敏感数据" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -678,7 +780,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/" data-id="cuidcHPpmsIAeOqug9gydvJxW" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/" data-id="cuidHHHGA0iNlHnU1dfIuNizb" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -777,7 +879,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/10/dvwa-fileupload-burpsuite-behinder/" data-id="cuidinEixd8aKhn_Zeovs_OWK" data-title="Web安全实战：DVWA文件上传漏洞绕过与冰蝎GetShell" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/10/dvwa-fileupload-burpsuite-behinder/" data-id="cuidHH4-ZY_pQ0abR0UeO26qr" data-title="Web安全实战：DVWA文件上传漏洞绕过与冰蝎GetShell" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -866,88 +968,11 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/09/owasp-top-10-sqli-union-column-count/" data-id="cuid8M6d5-g2pCjB-J-Qf4lnH" data-title="【实战笔记】OWASP Top 10 - SQL 注入：UNION 攻击确定列数" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/09/owasp-top-10-sqli-union-column-count/" data-id="cuidDPMTNfUuvQk3FO3WMk1-E" data-title="【实战笔记】OWASP Top 10 - SQL 注入：UNION 攻击确定列数" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
   <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li></ul>
-
-    </footer>
-  </div>
-  
-</article>
-
-
-
-  
-    <article id="post-owasp-top-10-sqli-login-bypass" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
-  <div class="article-meta">
-    <a href="/2026/03/08/owasp-top-10-sqli-login-bypass/" class="article-date">
-  <time class="dt-published" datetime="2026-03-08T08:30:00.000Z" itemprop="datePublished">2026-03-08</time>
-</a>
-    
-  <div class="article-category">
-    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a>
-  </div>
-
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="p-name article-title" href="/2026/03/08/owasp-top-10-sqli-login-bypass/">【实战笔记】OWASP Top 10 - SQL 注入：身份验证绕过</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="e-content article-entry" itemprop="articleBody">
-      
-        <h2 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h2><p>在 Web 安全领域，SQL 注入（SQLi）始终高居 OWASP Top 10 榜单。本文记录了在 PortSwigger 学院中完成的“允许登录绕过的 SQL 注入”实验过程及底层原理分析。</p>
-<p>注：以上标签以上的文字会显示在首页摘要，点击“阅读全文”才能看到后面内容。</p>
-<hr>
-<h2 id="1-漏洞原理简述"><a href="#1-漏洞原理简述" class="headerlink" title="1. 漏洞原理简述"></a>1. 漏洞原理简述</h2><p><strong>SQL 注入 (SQL Injection)</strong> 是由于应用程序未对用户输入的 SQL 指令进行有效过滤，导致后端数据库执行了非预期的查询。</p>
-<p>在<strong>登录绕过</strong>场景中，后端验证逻辑通常如下：<br><code>SELECT * FROM users WHERE username = &#39;USER_INPUT&#39; AND password = &#39;PASSWORD_INPUT&#39;</code></p>
-<p>通过构造特殊的输入，我们可以破坏原有的逻辑结构，强制使查询结果返回“真”。</p>
-<hr>
-<h2 id="2-核心-Payload-分析"><a href="#2-核心-Payload-分析" class="headerlink" title="2. 核心 Payload 分析"></a>2. 核心 Payload 分析</h2><p>本次实验针对 <code>username</code> 字段使用了以下注入语句：</p>
-<p><strong>Payload:</strong> <code>administrator&#39;--</code></p>
-<h3 id="逻辑解析："><a href="#逻辑解析：" class="headerlink" title="逻辑解析："></a>逻辑解析：</h3><ul>
-<li><strong><code>&#39;</code> (单引号)</strong>：闭合 SQL 语句中 <code>username</code> 值的左半部分。</li>
-<li><strong><code>--</code> (注释符)</strong>：在 SQL 中代表单行注释，它会使数据库忽略掉后面原本用于校验密码的 <code>AND password = &#39;...&#39;</code> 部分。</li>
-</ul>
-<p><strong>最终在数据库执行的等效语句：</strong></p>
-<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> users <span class="keyword">WHERE</span> username <span class="operator">=</span> <span class="string">&#x27;administrator&#x27;</span> </span><br></pre></td></tr></table></figure>
-
-<hr>
-<h3 id="3-靶场复现过程"><a href="#3-靶场复现过程" class="headerlink" title="3. 靶场复现过程"></a>3. 靶场复现过程</h3><p><strong>实验环境</strong>：PortSwigger Academy - SQL injection vulnerability in WHERE clause allowing login bypass</p>
-<p><strong>复现步骤</strong>：</p>
-<ol>
-<li><p><strong>截获请求</strong>：打开实验页面，点击 Login。在提交表单时，通过 Burp Suite（或浏览器开发者工具）观察请求参数。</p>
-</li>
-<li><p><strong>构造 Payload</strong>：在 <code>username</code> 字段输入 <code>administrator&#39;--</code>，密码随机填写。</p>
-</li>
-<li><p><strong>执行结果</strong>：点击 Log in 后，系统成功识别我为 <code>administrator</code> 用户，并跳转至管理页面。</p>
-<p><img src="/2026/03/08/owasp-top-10-sqli-login-bypass/lab-result.png" alt="成功绕过截图"></p>
-</li>
-</ol>
-<h2 id="4-防御建议"><a href="#4-防御建议" class="headerlink" title="4. 防御建议"></a>4. 防御建议</h2><p>最根本的解决办法是<strong>不要拼接 SQL 字符串</strong>。</p>
-<h4 id="✅-推荐做法：预编译（Parameterized-Queries）"><a href="#✅-推荐做法：预编译（Parameterized-Queries）" class="headerlink" title="✅ 推荐做法：预编译（Parameterized Queries）"></a>✅ 推荐做法：预编译（Parameterized Queries）</h4><p>以 Java 为例，使用 <code>PreparedStatement</code> 可以完全避免此类攻击：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">String</span> <span class="variable">customerName</span> <span class="operator">=</span> request.getParameter(<span class="string">&quot;customerName&quot;</span>);</span><br><span class="line"><span class="comment">// 使用占位符 ?，数据库会将输入内容仅视为纯文本</span></span><br><span class="line"><span class="type">String</span> <span class="variable">query</span> <span class="operator">=</span> <span class="string">&quot;SELECT * FROM users WHERE username = ?&quot;</span>;</span><br><span class="line"><span class="type">PreparedStatement</span> <span class="variable">pstmt</span> <span class="operator">=</span> connection.prepareStatement(query);</span><br><span class="line">pstmt.setString(<span class="number">1</span>, customerName);</span><br><span class="line"><span class="type">ResultSet</span> <span class="variable">results</span> <span class="operator">=</span> pstmt.executeQuery();</span><br></pre></td></tr></table></figure>
-
-<h4 id="❌-错误做法：字符串拼接"><a href="#❌-错误做法：字符串拼接" class="headerlink" title="❌ 错误做法：字符串拼接"></a>❌ 错误做法：字符串拼接</h4><p>&#x2F;&#x2F; 极度危险！用户输入的 ‘ 会闭合 SQL 语句</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">String</span> <span class="variable">query</span> <span class="operator">=</span> <span class="string">&quot;SELECT * FROM users WHERE username = &#x27;&quot;</span> + userName + <span class="string">&quot;&#x27;&quot;</span>;</span><br></pre></td></tr></table></figure>
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/08/owasp-top-10-sqli-login-bypass/" data-id="cuidzJYK-X8LXdRxcaTecngc5" data-title="【实战笔记】OWASP Top 10 - SQL 注入：身份验证绕过" class="article-share-link"><span class="fa fa-share">Share</span></a>
-      
-      
-      
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" rel="tag">身份验证绕过</a></li></ul>
 
     </footer>
   </div>
@@ -982,7 +1007,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">Tags</h3>
     <div class="widget">
-      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/BurpSuite/" rel="tag">BurpSuite</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/DVWA/" rel="tag">DVWA</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Information-Schema/" rel="tag">Information Schema</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MSSQL/" rel="tag">MSSQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MySQL/" rel="tag">MySQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Oracle/" rel="tag">Oracle</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Web%E5%AE%89%E5%85%A8/" rel="tag">Web安全</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%86%B0%E8%9D%8E/" rel="tag">冰蝎</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" rel="tag">字符串拼接</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" rel="tag">指纹识别</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" rel="tag">数据脱库</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" rel="tag">身份验证绕过</a></li></ul>
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/Blind-SQLi/" rel="tag">Blind SQLi</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/BurpSuite/" rel="tag">BurpSuite</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/DVWA/" rel="tag">DVWA</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Information-Schema/" rel="tag">Information Schema</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MSSQL/" rel="tag">MSSQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MySQL/" rel="tag">MySQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Oracle/" rel="tag">Oracle</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Web%E5%AE%89%E5%85%A8/" rel="tag">Web安全</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%86%B0%E8%9D%8E/" rel="tag">冰蝎</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" rel="tag">字符串拼接</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8/" rel="tag">布尔盲注</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" rel="tag">指纹识别</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" rel="tag">数据脱库</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" rel="tag">身份验证绕过</a></li></ul>
     </div>
   </div>
 
@@ -992,7 +1017,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">Tag Cloud</h3>
     <div class="widget tagcloud">
-      <a href="/tags/BurpSuite/" style="font-size: 10px;">BurpSuite</a> <a href="/tags/DVWA/" style="font-size: 10px;">DVWA</a> <a href="/tags/Information-Schema/" style="font-size: 10px;">Information Schema</a> <a href="/tags/MSSQL/" style="font-size: 10px;">MSSQL</a> <a href="/tags/MySQL/" style="font-size: 10px;">MySQL</a> <a href="/tags/Oracle/" style="font-size: 12.5px;">Oracle</a> <a href="/tags/PortSwigger/" style="font-size: 20px;">PortSwigger</a> <a href="/tags/SQL-Injection/" style="font-size: 20px;">SQL Injection</a> <a href="/tags/UNION%E6%B3%A8%E5%85%A5/" style="font-size: 15px;">UNION注入</a> <a href="/tags/Web%E5%AE%89%E5%85%A8/" style="font-size: 10px;">Web安全</a> <a href="/tags/%E5%86%B0%E8%9D%8E/" style="font-size: 10px;">冰蝎</a> <a href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" style="font-size: 10px;">字符串拼接</a> <a href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" style="font-size: 12.5px;">指纹识别</a> <a href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" style="font-size: 12.5px;">数据脱库</a> <a href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" style="font-size: 17.5px;">渗透测试</a> <a href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" style="font-size: 10px;">身份验证绕过</a>
+      <a href="/tags/Blind-SQLi/" style="font-size: 10px;">Blind SQLi</a> <a href="/tags/BurpSuite/" style="font-size: 10px;">BurpSuite</a> <a href="/tags/DVWA/" style="font-size: 10px;">DVWA</a> <a href="/tags/Information-Schema/" style="font-size: 10px;">Information Schema</a> <a href="/tags/MSSQL/" style="font-size: 10px;">MSSQL</a> <a href="/tags/MySQL/" style="font-size: 10px;">MySQL</a> <a href="/tags/Oracle/" style="font-size: 12.5px;">Oracle</a> <a href="/tags/PortSwigger/" style="font-size: 20px;">PortSwigger</a> <a href="/tags/SQL-Injection/" style="font-size: 20px;">SQL Injection</a> <a href="/tags/UNION%E6%B3%A8%E5%85%A5/" style="font-size: 15px;">UNION注入</a> <a href="/tags/Web%E5%AE%89%E5%85%A8/" style="font-size: 10px;">Web安全</a> <a href="/tags/%E5%86%B0%E8%9D%8E/" style="font-size: 10px;">冰蝎</a> <a href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" style="font-size: 10px;">字符串拼接</a> <a href="/tags/%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8/" style="font-size: 10px;">布尔盲注</a> <a href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" style="font-size: 12.5px;">指纹识别</a> <a href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" style="font-size: 12.5px;">数据脱库</a> <a href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" style="font-size: 17.5px;">渗透测试</a> <a href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" style="font-size: 10px;">身份验证绕过</a>
     </div>
   </div>
 
@@ -1014,6 +1039,10 @@
       <ul>
         
           <li>
+            <a href="/2026/03/23/owasp-top-10-blind-sqli-conditional-responses/">【实战笔记】OWASP Top 10 - 基于条件响应的布尔盲注 (Boolean-Based Blind SQLi)</a>
+          </li>
+        
+          <li>
             <a href="/2026/03/20/owasp-top-10-sqli-listing-database-contents-oracle/">【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库全库信息枚举</a>
           </li>
         
@@ -1027,10 +1056,6 @@
         
           <li>
             <a href="/2026/03/14/owasp-top-10-sqli-database-version-oracle/">【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库版本指纹识别</a>
-          </li>
-        
-          <li>
-            <a href="/2026/03/13/owasp-top-10-sqli-union-string-concatenation/">【实战笔记】OWASP Top 10 - SQL 注入：单列多值提取（字符串拼接技巧）</a>
           </li>
         
       </ul>
