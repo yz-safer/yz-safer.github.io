@@ -71,6 +71,109 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-owasp-top-10-blind-sqli-time-delays" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2026/03/28/owasp-top-10-blind-sqli-time-delays/" class="article-date">
+  <time class="dt-published" datetime="2026-03-28T03:30:00.000Z" itemprop="datePublished">2026-03-28</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="p-name article-title" href="/2026/03/28/owasp-top-10-blind-sqli-time-delays/">【实战笔记】OWASP Top 10 - 基于时间延迟的时间盲注 (Time-Based Blind SQLi)</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <h2 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h2><p>当一个 Web 应用不仅不回显数据，甚至连报错信息都进行了完美处理（不返回 500 错误）时，布尔盲注和报错盲注都会失效。此时，我们最后的手段是<strong>时间盲注</strong>。通过向数据库发送带有“延时函数”的指令，观察服务器响应是否出现了明显的延迟，从而像敲击摩斯密码一样，一比特一比特地扣出数据库内容。</p>
+<hr>
+<h2 id="1-漏洞原理简述"><a href="#1-漏洞原理简述" class="headerlink" title="1. 漏洞原理简述"></a>1. 漏洞原理简述</h2><p><strong>时间盲注（Time-Based Blind SQLi）</strong> 是一种通过观察服务器处理请求所花费的时间来推断信息的攻击方式。</p>
+<h3 id="核心逻辑："><a href="#核心逻辑：" class="headerlink" title="核心逻辑："></a>核心逻辑：</h3><ol>
+<li><strong>注入延时函数</strong>：利用数据库特有的函数（如 PostgreSQL 的 <code>pg_sleep()</code>）强制数据库挂起一段时间。</li>
+<li><strong>构造条件分支</strong>：结合 <code>IF</code> 或 <code>CASE WHEN</code>。如果条件为 <strong>真</strong>，则执行延时；如果为 <strong>假</strong>，则立即返回。</li>
+<li><strong>观察响应时长</strong>：<ul>
+<li><strong>响应延迟（如 &gt;10秒）</strong>：说明判断条件为 <strong>真</strong>。</li>
+<li><strong>响应即时（如 &lt;1秒）</strong>：说明判断条件为 <strong>假</strong>。</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="2-核心-Payload-与函数分析-PostgreSQL"><a href="#2-核心-Payload-与函数分析-PostgreSQL" class="headerlink" title="2. 核心 Payload 与函数分析 (PostgreSQL)"></a>2. 核心 Payload 与函数分析 (PostgreSQL)</h2><h3 id="关键函数："><a href="#关键函数：" class="headerlink" title="关键函数："></a>关键函数：</h3><ul>
+<li><strong><code>pg_sleep(seconds)</code></strong>：PostgreSQL 特有的函数，使当前会话进程暂停指定的秒数。</li>
+<li><strong><code>CASE WHEN (condition) THEN pg_sleep(10) ELSE pg_sleep(0) END</code></strong>：逻辑判断分支。</li>
+</ul>
+<h3 id="实验探测-Payload："><a href="#实验探测-Payload：" class="headerlink" title="实验探测 Payload："></a>实验探测 Payload：</h3><p><code>&#39; || (SELECT CASE WHEN (1=1) THEN pg_sleep(10) ELSE pg_sleep(0) END)--</code></p>
+<p><strong>逻辑解析：</strong></p>
+<ul>
+<li>如果数据库支持此函数且注入成功，浏览器转圈圈的时间会明显变长（10秒）。</li>
+<li>这是盲注中最耗时的一种方式，因为每测试一个字符，如果猜对了，你都必须等待那 10 秒。</li>
+</ul>
+<hr>
+<h2 id="3-靶场复现过程"><a href="#3-靶场复现过程" class="headerlink" title="3. 靶场复现过程"></a>3. 靶场复现过程</h2><p><strong>实验环境</strong>：PortSwigger Academy - Blind SQL injection with time delays</p>
+<p><strong>复现步骤</strong>：</p>
+<ol>
+<li><p><strong>确认注入点与延时机制</strong>：<br>修改 <code>TrackingId</code> Cookie：</p>
+<ul>
+<li><code>TrackingId=xyz&#39; || pg_sleep(10)--</code><br>观察 Burp Suite 中的 <strong>Response Received</strong> 时间。如果显示为 <code>10,000 millis</code> 左右，说明延时注入成功。</li>
+</ul>
+</li>
+<li><p><strong>探测表与用户是否存在</strong>：<br>注入：<code>&#39; || (SELECT CASE WHEN (username=&#39;administrator&#39;) THEN pg_sleep(10) ELSE pg_sleep(0) END FROM users)--</code><br>观察到 10 秒延迟，确认目标存在。</p>
+</li>
+<li><p><strong>探测密码长度</strong>：<br>注入：<code>&#39; || (SELECT CASE WHEN (username=&#39;administrator&#39; AND LENGTH(password)&gt;19) THEN pg_sleep(10) ELSE pg_sleep(0) END FROM users)--</code><br>当长度判断 &gt;19 时延迟，&gt;20 时不延迟。确认长度为 <strong>20位</strong>。</p>
+</li>
+<li><p><strong>自动化爆破 (使用 Burp Intruder 或脚本)</strong>：</p>
+<ul>
+<li><strong>Payload</strong>：<code>...SUBSTR(password, §1§, 1) = &#39;§a§&#39; THEN pg_sleep(10)...</code></li>
+<li><strong>Intruder 技巧</strong>：在结果列表中查看 <strong>“Time received”</strong> 或 <strong>“Response completed”</strong> 列。</li>
+<li><strong>筛选</strong>：寻找响应时间显著高于其他请求（例如 &gt;10000ms）的条目。</li>
+</ul>
+</li>
+<li><p><strong>执行结果</strong>：<br>根据时间延迟特征，依次记录下每一位的正确字符，拼接得到管理员密码。成功登录。</p>
+</li>
+</ol>
+<p><img src="/2026/03/28/owasp-top-10-blind-sqli-time-delays/lab-result.png" alt="Burp Intruder 时间延迟结果分析"></p>
+<hr>
+<h2 id="4-防御建议与总结"><a href="#4-防御建议与总结" class="headerlink" title="4. 防御建议与总结"></a>4. 防御建议与总结</h2><h3 id="关键点总结"><a href="#关键点总结" class="headerlink" title="关键点总结"></a>关键点总结</h3><ul>
+<li><strong>效率瓶颈</strong>：时间盲注非常缓慢，且容易受到网络波动（抖动）的影响。</li>
+<li><strong>资源消耗</strong>：大量使用 <code>pg_sleep</code> 或类似函数会占用数据库连接池，可能导致目标网站响应变慢甚至宕机（隐蔽的 DoS 攻击）。</li>
+</ul>
+<h3 id="防御方案"><a href="#防御方案" class="headerlink" title="防御方案"></a>防御方案</h3><ul>
+<li><strong>首选：参数化查询 (Prepared Statements)</strong>。这是所有 SQL 注入的终结者。</li>
+<li><strong>数据库配置</strong>：限制 Web 应用账户执行 <code>pg_sleep</code>, <code>sleep()</code>, <code>waitfor delay</code> 等高风险系统函数的权限。</li>
+<li><strong>监控异常延迟</strong>：在 Web 日志或 WAF 中监控大量高延迟且带有 SQL 特征字符的请求。</li>
+<li><strong>网络防火墙</strong>：设置合理的 HTTP 请求超时时间。</li>
+</ul>
+<hr>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2026/03/28/owasp-top-10-blind-sqli-time-delays/" data-id="cuid32W9ig-IpB83oO21MzH9b" data-title="【实战笔记】OWASP Top 10 - 基于时间延迟的时间盲注 (Time-Based Blind SQLi)" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/Blind-SQLi/" rel="tag">Blind SQLi</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PostgreSQL/" rel="tag">PostgreSQL</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%97%B6%E9%97%B4%E7%9B%B2%E6%B3%A8/" rel="tag">时间盲注</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+
+  
     <article id="post-owasp-top-10-blind-sqli-conditional-errors" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
   <div class="article-meta">
     <a href="/2026/03/26/owasp-top-10-blind-sqli-conditional-errors/" class="article-date">
@@ -161,7 +264,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/26/owasp-top-10-blind-sqli-conditional-errors/" data-id="cuidfVWTKFOB-ky9CCvZQFIiw" data-title="【实战笔记】OWASP Top 10 - 基于条件报错的布尔盲注 (Error-Based Blind SQLi)" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/26/owasp-top-10-blind-sqli-conditional-errors/" data-id="cuidu2Z7lr_5BiQxiBwguOaWn" data-title="【实战笔记】OWASP Top 10 - 基于条件报错的布尔盲注 (Error-Based Blind SQLi)" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -263,7 +366,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/23/owasp-top-10-blind-sqli-conditional-responses/" data-id="cuidSkQWfbyJhvY73YuM-YMvs" data-title="【实战笔记】OWASP Top 10 - 基于条件响应的布尔盲注 (Boolean-Based Blind SQLi)" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/23/owasp-top-10-blind-sqli-conditional-responses/" data-id="cuidN8wy7aKe81VwM8e6q9Cjw" data-title="【实战笔记】OWASP Top 10 - 基于条件响应的布尔盲注 (Boolean-Based Blind SQLi)" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -350,7 +453,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/20/owasp-top-10-sqli-listing-database-contents-oracle/" data-id="cuidgP3BDeE5JGD0kdW5pSRAS" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/20/owasp-top-10-sqli-listing-database-contents-oracle/" data-id="cuidCIHCxd2rFAMiDxbR2HcLs" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -434,7 +537,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/19/owasp-top-10-sqli-listing-database-contents/" data-id="cuid_8yfzSNJkbdUwCYZ2AE9-" data-title="【实战笔记】OWASP Top 10 - SQL 注入：非 Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/19/owasp-top-10-sqli-listing-database-contents/" data-id="cuidlQWGpB0ZRH2beSyfVmbun" data-title="【实战笔记】OWASP Top 10 - SQL 注入：非 Oracle 数据库全库信息枚举" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -543,7 +646,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/16/owasp-top-10-sqli-database-version-mysql-mssql/" data-id="cuidSvM4qOltIRLjrKwgHtxs0" data-title="【实战笔记】OWASP Top 10 - SQL 注入：MySQL 与 Microsoft SQL Server 指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/16/owasp-top-10-sqli-database-version-mysql-mssql/" data-id="cuidna5w2OmRl3Xg-9E74dDyw" data-title="【实战笔记】OWASP Top 10 - SQL 注入：MySQL 与 Microsoft SQL Server 指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -625,7 +728,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/14/owasp-top-10-sqli-database-version-oracle/" data-id="cuid2cSwXq5TjbhRYM5RL55Pt" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库版本指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/14/owasp-top-10-sqli-database-version-oracle/" data-id="cuid8FLWODH67tMSHTCkZbgv7" data-title="【实战笔记】OWASP Top 10 - SQL 注入：Oracle 数据库版本指纹识别" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -711,7 +814,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/13/owasp-top-10-sqli-union-string-concatenation/" data-id="cuidfzWuQdQEgQYMhYjlhRLgx" data-title="【实战笔记】OWASP Top 10 - SQL 注入：单列多值提取（字符串拼接技巧）" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/13/owasp-top-10-sqli-union-string-concatenation/" data-id="cuidqxeTt8Db3WT09sOxou3oI" data-title="【实战笔记】OWASP Top 10 - SQL 注入：单列多值提取（字符串拼接技巧）" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -805,7 +908,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/11/owasp-top-10-sqli-union-retrieving-data/" data-id="cuidDkxgv1Q3wJ2nHK2nm-HiL" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 提取跨表敏感数据" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/11/owasp-top-10-sqli-union-retrieving-data/" data-id="cuidQT-WXMGQJytRNLBTugiW-" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 提取跨表敏感数据" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
@@ -884,110 +987,11 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/" data-id="cuidjVWuRLNlEUWKOBeXTXPZL" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/" data-id="cuidZ93r0oI9P_fhXfA4aNkVR" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
   <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li></ul>
-
-    </footer>
-  </div>
-  
-</article>
-
-
-
-  
-    <article id="post-dvwa-fileupload-burpsuite-behinder" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
-  <div class="article-meta">
-    <a href="/2026/03/10/dvwa-fileupload-burpsuite-behinder/" class="article-date">
-  <time class="dt-published" datetime="2026-03-09T16:00:00.000Z" itemprop="datePublished">2026-03-10</time>
-</a>
-    
-  <div class="article-category">
-    <a class="article-category-link" href="/categories/%E5%AE%89%E5%85%A8%E6%8A%80%E6%9C%AF/">安全技术</a>
-  </div>
-
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="p-name article-title" href="/2026/03/10/dvwa-fileupload-burpsuite-behinder/">Web安全实战：DVWA文件上传漏洞绕过与冰蝎GetShell</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="e-content article-entry" itemprop="articleBody">
-      
-        <h1 id="DVWA-实验笔记：文件上传漏洞绕过与冰蝎-Behinder-GetShell-实战"><a href="#DVWA-实验笔记：文件上传漏洞绕过与冰蝎-Behinder-GetShell-实战" class="headerlink" title="DVWA 实验笔记：文件上传漏洞绕过与冰蝎 (Behinder) GetShell 实战"></a>DVWA 实验笔记：文件上传漏洞绕过与冰蝎 (Behinder) GetShell 实战</h1><h2 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h2><p>文件上传漏洞是 Web 安全中最直观、杀伤力最大的漏洞之一。通过上传恶意脚本（Webshell），攻击者可以直接获取服务器的控制权。本文将记录在 <strong>DVWA</strong> (Medium 级别) 环境下，利用 <strong>Burp Suite</strong> 绕过服务端 MIME 校验，并使用加密后门工具 <strong>冰蝎 (Behinder)</strong> 实现远程管理的完整过程。</p>
-<blockquote>
-<p><strong>声明：</strong> 本文仅供安全教育与授权渗透测试使用，请勿用于非法用途。</p>
-</blockquote>
-<hr>
-<h2 id="1-实验环境与工具"><a href="#1-实验环境与工具" class="headerlink" title="1. 实验环境与工具"></a>1. 实验环境与工具</h2><ul>
-<li><strong>靶机环境：</strong> DVWA (Security Level: Medium)</li>
-<li><strong>拦截代理：</strong> Burp Suite Professional</li>
-<li><strong>Webshell 生成器：</strong> 冰蝎 (Behinder) v4.0</li>
-<li><strong>实验目标：</strong> 绕过上传限制，获取服务器 WebShell 权限。</li>
-</ul>
-<hr>
-<h2 id="2-核心实战步骤"><a href="#2-核心实战步骤" class="headerlink" title="2. 核心实战步骤"></a>2. 核心实战步骤</h2><h3 id="第一步：生成加密-Webshell"><a href="#第一步：生成加密-Webshell" class="headerlink" title="第一步：生成加密 Webshell"></a>第一步：生成加密 Webshell</h3><p>打开冰蝎客户端，利用其内置的“服务端生成”功能：</p>
-<ol>
-<li>语言选择 <strong>PHP</strong>。</li>
-<li>设置连接密码（默认为 <code>rebeyond</code>）。</li>
-<li>生成并保存为 <code>shell.php</code>。</li>
-</ol>
-<blockquote>
-<p><strong>技术点：</strong> 冰蝎采用动态 AES 加密通信，相比传统的“大马”或“菜刀”，其流量特征极不明显，能有效绕过 WAF 扫描。</p>
-</blockquote>
-<h3 id="第二步：使用-Burp-Suite-绕过-MIME-校验"><a href="#第二步：使用-Burp-Suite-绕过-MIME-校验" class="headerlink" title="第二步：使用 Burp Suite 绕过 MIME 校验"></a>第二步：使用 Burp Suite 绕过 MIME 校验</h3><p>在 DVWA 的 Medium 级别中，服务器会检查请求头中的 <code>Content-Type</code>。</p>
-<ol>
-<li><strong>开启拦截：</strong> 在 Burp Suite 中将 <code>Intercept</code> 设置为 <code>on</code>。</li>
-<li><strong>提交请求：</strong> 在浏览器的上传页面选择 <code>shell.php</code> 并点击上传。</li>
-<li><strong>修改报文：</strong> 在 Burp 捕获的 HTTP 请求体中找到 <code>Content-Type</code> 字段：<ul>
-<li><strong>原始值：</strong> <code>Content-Type: application/octet-stream</code></li>
-<li><strong>修改后：</strong> <code>Content-Type: image/jpeg</code></li>
-</ul>
-</li>
-<li><strong>放行：</strong> 点击 <code>Forward</code> 发送请求。</li>
-</ol>
-<h3 id="第三步：获取上传路径"><a href="#第三步：获取上传路径" class="headerlink" title="第三步：获取上传路径"></a>第三步：获取上传路径</h3><p>上传成功后，页面会回显文件的存储路径：<br><code>../../hackable/uploads/shell.php successfully uploaded!</code></p>
-<p>结合靶机 URL，拼凑出完整的后门地址：<br><code>http://[Target-IP]/dvwa/hackable/uploads/shell.php</code></p>
-<h3 id="第四步：冰蝎连接管理"><a href="#第四步：冰蝎连接管理" class="headerlink" title="第四步：冰蝎连接管理"></a>第四步：冰蝎连接管理</h3><ol>
-<li><strong>新增连接：</strong> 在冰蝎客户端右键点击“新增”。</li>
-<li><strong>配置信息：</strong> * <strong>URL：</strong> 填写上一步拼凑的完整路径。<ul>
-<li><strong>传输协议：</strong> 选择生成时对应的协议</li>
-<li><strong>脚本密码：</strong> 填写生成时设置的密码。</li>
-</ul>
-</li>
-<li><strong>成功 GetShell：</strong> 双击连接。现在你可以进行文件管理、开启虚拟终端、甚至执行数据库操作。</li>
-</ol>
-<hr>
-<h2 id="3-深度分析"><a href="#3-深度分析" class="headerlink" title="3. 深度分析"></a>3. 深度分析</h2><h3 id="为什么能绕过？"><a href="#为什么能绕过？" class="headerlink" title="为什么能绕过？"></a>为什么能绕过？</h3><p>DVWA Medium 级别的防御逻辑仅通过校验 HTTP Header 中的 <code>Content-Type</code> 来判断文件合法性。由于该头部字段由客户端（浏览器&#x2F;代理工具）控制，攻击者可以通过 Burp Suite 轻松将其篡改为图片类型（如 <code>image/jpeg</code>），从而欺骗服务器后端。</p>
-<h3 id="为什么选择冰蝎？"><a href="#为什么选择冰蝎？" class="headerlink" title="为什么选择冰蝎？"></a>为什么选择冰蝎？</h3><p>传统的 Webshell 通信（如中国菜刀）流量中包含大量的明文执行命令（如 <code>base64_decode</code> 等关键字），极易被流量审计设备拦截。冰蝎通过在连接阶段动态交换密钥，后续所有指令均经过 AES 加密，实现了真正的“隐身”通信。</p>
-<hr>
-<h2 id="4-防御与加固建议"><a href="#4-防御与加固建议" class="headerlink" title="4. 防御与加固建议"></a>4. 防御与加固建议</h2><p>要彻底防御文件上传漏洞，应采取以下措施：</p>
-<ol>
-<li><strong>后缀名白名单：</strong> 只允许指定的扩展名（如 <code>.jpg</code>, <code>.png</code>），不要使用黑名单。</li>
-<li><strong>文件内容校验：</strong> 检查文件的“幻数”（Magic Bytes），验证其二进制流是否符合图片特征。</li>
-<li><strong>随机重命名：</strong> 上传后重命名文件（如使用 UUID），防止攻击者直接猜测路径。</li>
-<li><strong>目录执行权限：</strong> 将上传目录设置为不可执行脚本（例如在 Nginx 中禁止该目录解析 <code>.php</code> 文件）。</li>
-</ol>
-<hr>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/10/dvwa-fileupload-burpsuite-behinder/" data-id="cuidaZBXHTRFJ5Jn_I-sQdmLs" data-title="Web安全实战：DVWA文件上传漏洞绕过与冰蝎GetShell" class="article-share-link"><span class="fa fa-share">Share</span></a>
-      
-      
-      
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/BurpSuite/" rel="tag">BurpSuite</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/DVWA/" rel="tag">DVWA</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/Web%E5%AE%89%E5%85%A8/" rel="tag">Web安全</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E5%86%B0%E8%9D%8E/" rel="tag">冰蝎</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li></ul>
 
     </footer>
   </div>
@@ -1022,7 +1026,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">Tags</h3>
     <div class="widget">
-      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/Blind-SQLi/" rel="tag">Blind SQLi</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/BurpSuite/" rel="tag">BurpSuite</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/DVWA/" rel="tag">DVWA</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Information-Schema/" rel="tag">Information Schema</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MSSQL/" rel="tag">MSSQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MySQL/" rel="tag">MySQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Oracle/" rel="tag">Oracle</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Web%E5%AE%89%E5%85%A8/" rel="tag">Web安全</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%86%B0%E8%9D%8E/" rel="tag">冰蝎</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" rel="tag">字符串拼接</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8/" rel="tag">布尔盲注</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%8A%A5%E9%94%99%E7%9B%B2%E6%B3%A8/" rel="tag">报错盲注</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" rel="tag">指纹识别</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" rel="tag">数据脱库</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" rel="tag">身份验证绕过</a></li></ul>
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/Blind-SQLi/" rel="tag">Blind SQLi</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/BurpSuite/" rel="tag">BurpSuite</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/DVWA/" rel="tag">DVWA</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Information-Schema/" rel="tag">Information Schema</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MSSQL/" rel="tag">MSSQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/MySQL/" rel="tag">MySQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Oracle/" rel="tag">Oracle</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/PostgreSQL/" rel="tag">PostgreSQL</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/Web%E5%AE%89%E5%85%A8/" rel="tag">Web安全</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%86%B0%E8%9D%8E/" rel="tag">冰蝎</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" rel="tag">字符串拼接</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8/" rel="tag">布尔盲注</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%8A%A5%E9%94%99%E7%9B%B2%E6%B3%A8/" rel="tag">报错盲注</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" rel="tag">指纹识别</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" rel="tag">数据脱库</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%97%B6%E9%97%B4%E7%9B%B2%E6%B3%A8/" rel="tag">时间盲注</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" rel="tag">身份验证绕过</a></li></ul>
     </div>
   </div>
 
@@ -1032,7 +1036,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">Tag Cloud</h3>
     <div class="widget tagcloud">
-      <a href="/tags/Blind-SQLi/" style="font-size: 12.5px;">Blind SQLi</a> <a href="/tags/BurpSuite/" style="font-size: 10px;">BurpSuite</a> <a href="/tags/DVWA/" style="font-size: 10px;">DVWA</a> <a href="/tags/Information-Schema/" style="font-size: 10px;">Information Schema</a> <a href="/tags/MSSQL/" style="font-size: 10px;">MSSQL</a> <a href="/tags/MySQL/" style="font-size: 10px;">MySQL</a> <a href="/tags/Oracle/" style="font-size: 15px;">Oracle</a> <a href="/tags/PortSwigger/" style="font-size: 20px;">PortSwigger</a> <a href="/tags/SQL-Injection/" style="font-size: 20px;">SQL Injection</a> <a href="/tags/UNION%E6%B3%A8%E5%85%A5/" style="font-size: 15px;">UNION注入</a> <a href="/tags/Web%E5%AE%89%E5%85%A8/" style="font-size: 10px;">Web安全</a> <a href="/tags/%E5%86%B0%E8%9D%8E/" style="font-size: 10px;">冰蝎</a> <a href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" style="font-size: 10px;">字符串拼接</a> <a href="/tags/%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8/" style="font-size: 10px;">布尔盲注</a> <a href="/tags/%E6%8A%A5%E9%94%99%E7%9B%B2%E6%B3%A8/" style="font-size: 10px;">报错盲注</a> <a href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" style="font-size: 12.5px;">指纹识别</a> <a href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" style="font-size: 12.5px;">数据脱库</a> <a href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" style="font-size: 17.5px;">渗透测试</a> <a href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" style="font-size: 10px;">身份验证绕过</a>
+      <a href="/tags/Blind-SQLi/" style="font-size: 15px;">Blind SQLi</a> <a href="/tags/BurpSuite/" style="font-size: 10px;">BurpSuite</a> <a href="/tags/DVWA/" style="font-size: 10px;">DVWA</a> <a href="/tags/Information-Schema/" style="font-size: 10px;">Information Schema</a> <a href="/tags/MSSQL/" style="font-size: 10px;">MSSQL</a> <a href="/tags/MySQL/" style="font-size: 10px;">MySQL</a> <a href="/tags/Oracle/" style="font-size: 15px;">Oracle</a> <a href="/tags/PortSwigger/" style="font-size: 20px;">PortSwigger</a> <a href="/tags/PostgreSQL/" style="font-size: 10px;">PostgreSQL</a> <a href="/tags/SQL-Injection/" style="font-size: 20px;">SQL Injection</a> <a href="/tags/UNION%E6%B3%A8%E5%85%A5/" style="font-size: 15px;">UNION注入</a> <a href="/tags/Web%E5%AE%89%E5%85%A8/" style="font-size: 10px;">Web安全</a> <a href="/tags/%E5%86%B0%E8%9D%8E/" style="font-size: 10px;">冰蝎</a> <a href="/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8B%BC%E6%8E%A5/" style="font-size: 10px;">字符串拼接</a> <a href="/tags/%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8/" style="font-size: 10px;">布尔盲注</a> <a href="/tags/%E6%8A%A5%E9%94%99%E7%9B%B2%E6%B3%A8/" style="font-size: 10px;">报错盲注</a> <a href="/tags/%E6%8C%87%E7%BA%B9%E8%AF%86%E5%88%AB/" style="font-size: 12.5px;">指纹识别</a> <a href="/tags/%E6%95%B0%E6%8D%AE%E8%84%B1%E5%BA%93/" style="font-size: 12.5px;">数据脱库</a> <a href="/tags/%E6%97%B6%E9%97%B4%E7%9B%B2%E6%B3%A8/" style="font-size: 10px;">时间盲注</a> <a href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" style="font-size: 17.5px;">渗透测试</a> <a href="/tags/%E8%BA%AB%E4%BB%BD%E9%AA%8C%E8%AF%81%E7%BB%95%E8%BF%87/" style="font-size: 10px;">身份验证绕过</a>
     </div>
   </div>
 
@@ -1054,6 +1058,10 @@
       <ul>
         
           <li>
+            <a href="/2026/03/28/owasp-top-10-blind-sqli-time-delays/">【实战笔记】OWASP Top 10 - 基于时间延迟的时间盲注 (Time-Based Blind SQLi)</a>
+          </li>
+        
+          <li>
             <a href="/2026/03/26/owasp-top-10-blind-sqli-conditional-errors/">【实战笔记】OWASP Top 10 - 基于条件报错的布尔盲注 (Error-Based Blind SQLi)</a>
           </li>
         
@@ -1067,10 +1075,6 @@
         
           <li>
             <a href="/2026/03/19/owasp-top-10-sqli-listing-database-contents/">【实战笔记】OWASP Top 10 - SQL 注入：非 Oracle 数据库全库信息枚举</a>
-          </li>
-        
-          <li>
-            <a href="/2026/03/16/owasp-top-10-sqli-database-version-mysql-mssql/">【实战笔记】OWASP Top 10 - SQL 注入：MySQL 与 Microsoft SQL Server 指纹识别</a>
           </li>
         
       </ul>
