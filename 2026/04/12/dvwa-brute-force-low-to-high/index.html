@@ -4,25 +4,26 @@
   <meta charset="utf-8">
   
   
-  <title>【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列 | Hexo</title>
+  <title>【实战笔记】DVWA 暴力破解：从 Low 到 High 的通关指南 | Hexo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="0. 前言在确定了原始查询的列数后，下一步是找出哪些列可以用来提取数据。由于 UNION 注入要求数据类型必须兼容，我们通常需要寻找支持 字符串（String&#x2F;Text） 类型的列，以便在后续步骤中显示数据库中的敏感信息。  1. 漏洞原理简述在执行 UNION SELECT 时，每一列的数据类型必须与原始查询对应列的类型兼容。 如果原始查询的第一列是整数（Integer），而你试图在">
+  <meta name="description" content="0. 前言暴力破解（Brute Force）是针对身份验证最直接的攻击手段。通过遍历预定义的字典，尝试匹配正确的用户名和密码。在 DVWA 靶场中，我们将通过 Burp Suite 演示如何针对不同防御等级（从无防御到 Token 防御）进行破解测试。  1. 核心原理简述暴力破解的本质是枚举。但在实际应用中，开发者会加入各种机制来提高破解成本：  Low 级别：没有任何防御，直接根据返回包的长度">
 <meta property="og:type" content="article">
-<meta property="og:title" content="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列">
-<meta property="og:url" content="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/index.html">
+<meta property="og:title" content="【实战笔记】DVWA 暴力破解：从 Low 到 High 的通关指南">
+<meta property="og:url" content="http://example.com/2026/04/12/dvwa-brute-force-low-to-high/index.html">
 <meta property="og:site_name" content="Hexo">
-<meta property="og:description" content="0. 前言在确定了原始查询的列数后，下一步是找出哪些列可以用来提取数据。由于 UNION 注入要求数据类型必须兼容，我们通常需要寻找支持 字符串（String&#x2F;Text） 类型的列，以便在后续步骤中显示数据库中的敏感信息。  1. 漏洞原理简述在执行 UNION SELECT 时，每一列的数据类型必须与原始查询对应列的类型兼容。 如果原始查询的第一列是整数（Integer），而你试图在">
+<meta property="og:description" content="0. 前言暴力破解（Brute Force）是针对身份验证最直接的攻击手段。通过遍历预定义的字典，尝试匹配正确的用户名和密码。在 DVWA 靶场中，我们将通过 Burp Suite 演示如何针对不同防御等级（从无防御到 Token 防御）进行破解测试。  1. 核心原理简述暴力破解的本质是枚举。但在实际应用中，开发者会加入各种机制来提高破解成本：  Low 级别：没有任何防御，直接根据返回包的长度">
 <meta property="og:locale" content="en_US">
-<meta property="og:image" content="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/lab-result.png">
-<meta property="article:published_time" content="2026-03-10T07:30:00.000Z">
-<meta property="article:modified_time" content="2026-03-10T07:30:00.000Z">
+<meta property="og:image" content="http://example.com/2026/04/12/dvwa-brute-force-low-to-high/dvwa-brute-force-high-result.png">
+<meta property="article:published_time" content="2026-04-12T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-12T02:00:00.000Z">
 <meta property="article:author" content="John Doe">
-<meta property="article:tag" content="PortSwigger">
-<meta property="article:tag" content="SQL Injection">
-<meta property="article:tag" content="UNION注入">
-<meta property="article:tag" content="渗透测试">
+<meta property="article:tag" content="Brute Force">
+<meta property="article:tag" content="Burp Suite">
+<meta property="article:tag" content="DVWA">
+<meta property="article:tag" content="暴力破解">
+<meta property="article:tag" content="防御绕过">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/lab-result.png">
+<meta name="twitter:image" content="http://example.com/2026/04/12/dvwa-brute-force-low-to-high/dvwa-brute-force-high-result.png">
   
     <link rel="alternate" href="/atom.xml" title="Hexo" type="application/atom+xml">
   
@@ -79,14 +80,14 @@
 </header>
 
       <div class="outer">
-        <section id="main"><article id="post-owasp-top-10-sqli-union-find-column-type" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+        <section id="main"><article id="post-dvwa-brute-force-low-to-high" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
   <div class="article-meta">
-    <a href="/2026/03/10/owasp-top-10-sqli-union-find-column-type/" class="article-date">
-  <time class="dt-published" datetime="2026-03-10T07:30:00.000Z" itemprop="datePublished">2026-03-10</time>
+    <a href="/2026/04/12/dvwa-brute-force-low-to-high/" class="article-date">
+  <time class="dt-published" datetime="2026-04-12T02:00:00.000Z" itemprop="datePublished">2026-04-12</time>
 </a>
     
   <div class="article-category">
-    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a>
+    <a class="article-category-link" href="/categories/Web%E5%AE%89%E5%85%A8/">Web安全</a>
   </div>
 
   </div>
@@ -97,7 +98,7 @@
         
   
     <h1 class="p-name article-title" itemprop="headline name">
-      【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列
+      【实战笔记】DVWA 暴力破解：从 Low 到 High 的通关指南
     </h1>
   
 
@@ -105,50 +106,67 @@
     
     <div class="e-content article-entry" itemprop="articleBody">
       
-        <h2 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h2><p>在确定了原始查询的列数后，下一步是找出哪些列可以用来提取数据。由于 UNION 注入要求数据类型必须兼容，我们通常需要寻找支持 <strong>字符串（String&#x2F;Text）</strong> 类型的列，以便在后续步骤中显示数据库中的敏感信息。</p>
+        <h2 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h2><p>暴力破解（Brute Force）是针对身份验证最直接的攻击手段。通过遍历预定义的字典，尝试匹配正确的用户名和密码。在 DVWA 靶场中，我们将通过 Burp Suite 演示如何针对不同防御等级（从无防御到 Token 防御）进行破解测试。</p>
 <hr>
-<h2 id="1-漏洞原理简述"><a href="#1-漏洞原理简述" class="headerlink" title="1. 漏洞原理简述"></a>1. 漏洞原理简述</h2><p>在执行 <code>UNION SELECT</code> 时，每一列的数据类型必须与原始查询对应列的类型兼容。</p>
-<p>如果原始查询的第一列是整数（Integer），而你试图在 UNION 中注入字符串，数据库会抛出数据类型不匹配的错误。因此，我们需要通过<strong>逐列替换测试</strong>的方法，找到那个能够正常渲染字符串的“出口”。</p>
-<hr>
-<h2 id="2-核心探测手法与-Payload-分析"><a href="#2-核心探测手法与-Payload-分析" class="headerlink" title="2. 核心探测手法与 Payload 分析"></a>2. 核心探测手法与 Payload 分析</h2><p>假设我们已经通过 <code>ORDER BY</code> 确定原始查询有 3 列，接下来我们要依次测试每一列是否支持字符型数据。</p>
-<h3 id="测试步骤："><a href="#测试步骤：" class="headerlink" title="测试步骤："></a>测试步骤：</h3><ol>
-<li><strong>测试第一列</strong>：<code>&#39; UNION SELECT &#39;abc&#39;, NULL, NULL--</code></li>
-<li><strong>测试第二列</strong>：<code>&#39; UNION SELECT NULL, &#39;abc&#39;, NULL--</code></li>
-<li><strong>测试第三列</strong>：<code>&#39; UNION SELECT NULL, NULL, &#39;abc&#39;--</code></li>
-</ol>
-<h3 id="逻辑解析："><a href="#逻辑解析：" class="headerlink" title="逻辑解析："></a>逻辑解析：</h3><ul>
-<li><strong><code>NULL</code> 的妙用</strong>：由于 <code>NULL</code> 可以转换成任何类型，它在探测时不会触发类型错误。</li>
-<li><strong>常量字符串 <code>&#39;abc&#39;</code></strong>：我们尝试将其中一个 <code>NULL</code> 替换为已知的字符串。</li>
-<li><strong>观察响应</strong>：<ul>
-<li>如果页面返回 <strong>HTTP 500</strong> 或报错，说明该列<strong>不支持</strong>字符串类型。</li>
-<li>如果页面正常渲染，并在原本显示数据的位置出现了 <code>&#39;abc&#39;</code>，说明该列<strong>可以</strong>用来提取文本数据。</li>
-</ul>
-</li>
-</ul>
-<hr>
-<h2 id="3-靶场复现过程"><a href="#3-靶场复现过程" class="headerlink" title="3. 靶场复现过程"></a>3. 靶场复现过程</h2><p><strong>实验环境</strong>：PortSwigger Academy - SQL injection UNION attack, finding a column containing text</p>
-<p><strong>复现步骤</strong>：</p>
+<h2 id="1-核心原理简述"><a href="#1-核心原理简述" class="headerlink" title="1. 核心原理简述"></a>1. 核心原理简述</h2><p><strong>暴力破解</strong>的本质是枚举。但在实际应用中，开发者会加入各种机制来提高破解成本：</p>
 <ol>
-<li><strong>确定列数</strong>：<br>使用 <code>&#39; ORDER BY 3--</code> 正常，<code>&#39; ORDER BY 4--</code> 报错，确认共有 <strong>3 列</strong>。</li>
-<li><strong>寻找文本列</strong>：<ul>
-<li>尝试第一列：<code>&#39; UNION SELECT &#39;CoUV8K&#39;, NULL, NULL--</code> -&gt; 报错 500。</li>
-<li>尝试第二列：<code>&#39; UNION SELECT NULL, &#39;CoUV8K&#39;, NULL--</code> -&gt; <strong>成功！</strong> 页面正常显示了该随机字符串。</li>
-<li>尝试第三列：<code>&#39; UNION SELECT NULL, NULL, &#39;CoUV8K&#39;--</code> -&gt; 报错 500。</li>
+<li><strong>Low 级别</strong>：没有任何防御，直接根据返回包的长度或关键词判断结果。</li>
+<li><strong>Medium 级别</strong>：加入了后端延时和失败限制，尝试增加攻击的时间成本。</li>
+<li><strong>High 级别</strong>：引入了 <strong>Anti-CSRF Token</strong>，每次请求都需要携带上一次返回的唯一 Token，使得简单的自动化工具失效。</li>
+</ol>
+<hr>
+<h2 id="2-实验环境与工具"><a href="#2-实验环境与工具" class="headerlink" title="2. 实验环境与工具"></a>2. 实验环境与工具</h2><ul>
+<li><strong>靶场</strong>：DVWA (Damn Vulnerable Web App)</li>
+<li><strong>工具</strong>：Burp Suite Professional &#x2F; Community Edition</li>
+<li><strong>字典</strong>：常用的弱口令字典（如 top100_passwords.txt）</li>
+</ul>
+<hr>
+<h2 id="3-靶场复现过程"><a href="#3-靶场复现过程" class="headerlink" title="3. 靶场复现过程"></a>3. 靶场复现过程</h2><h3 id="3-1-Low-级别（无防御）"><a href="#3-1-Low-级别（无防御）" class="headerlink" title="3.1 Low 级别（无防御）"></a>3.1 Low 级别（无防御）</h3><p><strong>思路</strong>：直接爆破。</p>
+<ol>
+<li><strong>截包</strong>：在登录页面输入 <code>admin/123</code>，由 Burp Suite 拦截请求。</li>
+<li><strong>设置 Intruder</strong>：将 <code>username</code> 和 <code>password</code> 设置为攻击位置。</li>
+<li><strong>设置 Payload</strong>：使用 <code>Cluster Bomb</code> (集束炸弹) 模式，分别加载用户名和密码字典。</li>
+<li><strong>识别成功标志</strong>：观察返回包长度。正确的凭据通常会返回 HTTP 302 跳转或包含 “Welcome” 字样的页面，其长度与失败请求（显示 “Login failed”）明显不同。</li>
+</ol>
+<h3 id="3-2-Medium-级别（延时防御）"><a href="#3-2-Medium-级别（延时防御）" class="headerlink" title="3.2 Medium 级别（延时防御）"></a>3.2 Medium 级别（延时防御）</h3><p><strong>思路</strong>：源码中加入了 <code>sleep(2)</code>，失败后会暂停 2 秒。</p>
+<ol>
+<li><strong>现象</strong>：爆破速度明显变慢。</li>
+<li><strong>对策</strong>：在 Burp Intruder 的 <code>Resource Pool</code> 中调低并发线程数，保持耐心，或者寻找是否存在其他绕过方式。由于它只是简单的延时，爆破逻辑与 Low 级别完全一致。</li>
+</ol>
+<h3 id="3-3-High-级别（Anti-CSRF-Token-防御）"><a href="#3-3-High-级别（Anti-CSRF-Token-防御）" class="headerlink" title="3.3 High 级别（Anti-CSRF Token 防御）"></a>3.3 High 级别（Anti-CSRF Token 防御）</h3><p><strong>思路</strong>：每个登录请求都包含一个隐藏字段 <code>user_token</code>，且该 Token 随页面刷新而改变。</p>
+<ol>
+<li><strong>核心挑战</strong>：简单的 Intruder 无法自动获取并填充动态 Token。</li>
+<li><strong>Burp Suite 解决方案</strong>：<ul>
+<li><strong>Macros (宏)</strong>：在 <code>Settings</code> -&gt; <code>Sessions</code> 中配置宏，让 Burp 在每次请求前先访问登录页面抓取最新的 <code>user_token</code>。</li>
+<li><strong>Intruder 设置</strong>：<ul>
+<li>攻击类型选择 <code>Pitchfork</code>。</li>
+<li>第一个 Payload 设为密码字典，第二个 Payload 设为 <code>Recursive Grep</code>（递归提取）。</li>
+<li>在 <code>Options</code> -&gt; <code>Grep - Extract</code> 中找到响应包里的 <code>user_token</code> 并进行提取。</li>
 </ul>
 </li>
-<li><strong>执行结果</strong>：确认第二列为文本列。在本实验中，只要在指定列位置注入实验要求的随机字符串，即可通关。</li>
+</ul>
+</li>
+<li><strong>执行结果</strong>：Burp 会自动将上一次响应中的 Token 放入下一次请求，成功绕过防御实现爆破。</li>
 </ol>
-<h2 id=""><a href="#" class="headerlink" title="  "></a>  <img src="/2026/03/10/owasp-top-10-sqli-union-find-column-type/lab-result.png" alt="成功截图"></h2><h2 id="4-防御建议"><a href="#4-防御建议" class="headerlink" title="4. 防御建议"></a>4. 防御建议</h2><p>防御 UNION 注入的逻辑与之前一致，核心在于<strong>消除注入点</strong>：</p>
-<h4 id="✅-最佳实践：参数化查询（Parameterized-Queries）"><a href="#✅-最佳实践：参数化查询（Parameterized-Queries）" class="headerlink" title="✅ 最佳实践：参数化查询（Parameterized Queries）"></a>✅ 最佳实践：参数化查询（Parameterized Queries）</h4><p>无论数据类型是什么，预编译语句都会将输入内容视为纯字面量：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 安全的代码实现</span></span><br><span class="line"><span class="type">String</span> <span class="variable">category</span> <span class="operator">=</span> request.getParameter(<span class="string">&quot;category&quot;</span>);</span><br><span class="line"><span class="type">String</span> <span class="variable">sql</span> <span class="operator">=</span> <span class="string">&quot;SELECT name, description, price FROM products WHERE category = ?&quot;</span>;</span><br><span class="line"><span class="type">PreparedStatement</span> <span class="variable">pstmt</span> <span class="operator">=</span> connection.prepareStatement(sql);</span><br><span class="line">pstmt.setString(<span class="number">1</span>, category);</span><br><span class="line"><span class="type">ResultSet</span> <span class="variable">rs</span> <span class="operator">=</span> pstmt.executeQuery();</span><br></pre></td></tr></table></figure>
+<p><img src="/2026/04/12/dvwa-brute-force-low-to-high/dvwa-brute-force-high-result.png" alt="Burp Suite 递归提取 Token 设置截图"></p>
+<hr>
+<h2 id="4-防御建议与总结"><a href="#4-防御建议与总结" class="headerlink" title="4. 防御建议与总结"></a>4. 防御建议与总结</h2><h3 id="暴力破解的有效防御手段："><a href="#暴力破解的有效防御手段：" class="headerlink" title="暴力破解的有效防御手段："></a>暴力破解的有效防御手段：</h3><ol>
+<li><strong>多因素认证 (MFA)</strong>：即使密码被破获，没有验证码或生物识别也无法登录。</li>
+<li><strong>锁定策略</strong>：在连续尝试失败 N 次后，锁定账号或 IP 一段时间。</li>
+<li><strong>验证码 (CAPTCHA)</strong>：引入人机交互验证（如 Google reCAPTCHA），有效阻断全自动化工具。</li>
+<li><strong>强密码策略</strong>：要求密码包含大小写字母、数字及特殊符号，增加字典爆破的难度。</li>
+<li><strong>Anti-CSRF Token</strong>：虽然 High 级别被我们绕过了，但在实战中，配合验证码的 Token 会让暴力破解变得极其艰难。</li>
+</ol>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>从 Low 到 High 的过程，本质上是<strong>攻击成本与防御强度</strong>的博弈。作为渗透测试人员，我们需要掌握如何利用 Burp Suite 的高级功能（如 Macro 和 Recursive Grep）来处理动态参数。</p>
+
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://example.com/2026/03/10/owasp-top-10-sqli-union-find-column-type/" data-id="cuidRSgLfLxUBwDUlyPbNUtrn" data-title="【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 寻找包含文本的列" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      <a data-url="http://example.com/2026/04/12/dvwa-brute-force-low-to-high/" data-id="cuidEGnqO1HXwpJa59lCIKUv1" data-title="【实战笔记】DVWA 暴力破解：从 Low 到 High 的通关指南" class="article-share-link"><span class="fa fa-share">Share</span></a>
       
       
       
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/PortSwigger/" rel="tag">PortSwigger</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/SQL-Injection/" rel="tag">SQL Injection</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/UNION%E6%B3%A8%E5%85%A5/" rel="tag">UNION注入</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95/" rel="tag">渗透测试</a></li></ul>
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/Brute-Force/" rel="tag">Brute Force</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/Burp-Suite/" rel="tag">Burp Suite</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/DVWA/" rel="tag">DVWA</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E6%9A%B4%E5%8A%9B%E7%A0%B4%E8%A7%A3/" rel="tag">暴力破解</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/%E9%98%B2%E5%BE%A1%E7%BB%95%E8%BF%87/" rel="tag">防御绕过</a></li></ul>
 
     </footer>
   </div>
@@ -156,19 +174,10 @@
     
 <nav id="article-nav">
   
-    <a href="/2026/03/11/owasp-top-10-sqli-union-retrieving-data/" id="article-nav-newer" class="article-nav-link-wrap">
-      <strong class="article-nav-caption">Newer</strong>
-      <div class="article-nav-title">
-        
-          【实战笔记】OWASP Top 10 - SQL 注入：利用 UNION 提取跨表敏感数据
-        
-      </div>
-    </a>
   
-  
-    <a href="/2026/03/10/dvwa-fileupload-burpsuite-behinder/" id="article-nav-older" class="article-nav-link-wrap">
+    <a href="/2026/03/28/owasp-top-10-blind-sqli-time-delays/" id="article-nav-older" class="article-nav-link-wrap">
       <strong class="article-nav-caption">Older</strong>
-      <div class="article-nav-title">Web安全实战：DVWA文件上传漏洞绕过与冰蝎GetShell</div>
+      <div class="article-nav-title">【实战笔记】OWASP Top 10 - 基于时间延迟的时间盲注 (Time-Based Blind SQLi)</div>
     </a>
   
 </nav>
